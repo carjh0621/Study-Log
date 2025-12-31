@@ -1,5 +1,5 @@
 
-## predefined classes
+## Predefined classes
 
 math
 `Math` class. You have seen that you can use methods of the Math class, such as `Math.random`, without needing to know how they are implemented—all you need to know is the name and parameters (if any).

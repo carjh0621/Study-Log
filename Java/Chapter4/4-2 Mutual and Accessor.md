@@ -9,4 +9,4 @@ Unlike the `LocalDate.plusDays` method, the `GregorianCalendar.add` method is a 
 In contrast, methods that only access objects without modifying them are sometimes called accessor methods. For example, `LocalDate.getYear` and `GregorianCalendar.get` are accessor methods. (also `plusDays`)
 
 **(Mutator):** 메서드 실행 시 객체의 **내부 상태(State)를 변경**
-**(Accessor):** 객체의 상태를 변경하지 않고 값을 읽거나, 계산된 **새로운 값을 반환**
+**(Accessor):** 객체의 상태를 변경하지 않고 값을 읽거나, 계산된 **새로운 값을 반환** 
