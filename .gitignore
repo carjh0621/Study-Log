@@ -1,0 +1,5 @@
+# Obsidian 설정 폴더 무시
+.obsidian/
+
+# append 폴더 무시
+append/
