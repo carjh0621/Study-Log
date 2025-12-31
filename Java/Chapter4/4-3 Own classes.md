@@ -1,5 +1,5 @@
 
-## structure & rules
+## Structure & rules
 
 - **인스턴스 필드 (Instance Fields):** 객체의 데이터 상태 (예: 이름, 월급). 보통 `private`으로 숨긴다. (C `struct`의 멤버 변수)
     
