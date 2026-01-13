@@ -360,52 +360,138 @@ Callback
 - 콜백 패턴은 특정 이벤트가 발생하면, 이 코드를 실행하라고 시스템에 요청하는 프로그래밍 기법이다.
 - ex) 1초가 지날 때마다, 시계를 업데이트해줘
 
+c언어 등에서는 함수 포인터를 사용하여 함수의 주소를 넘기지만, 자바는 객체를 넘기는 방식을 사용.
+- 실행하고 싶은 메서드가 포함된 객체를 타이머에게 전달
+- 타이머는 전달받은 객체가 어떤 메서드를 가지고 있는지 확신할 수 있어야 한다. 이를 위해서 `ActionListener` 같은 인터페이스를 사용
+- 단순히 함수만 전달하는 것보다 객체를 전달하면, 객체 내부에 추가적인 정보를 함께 전달할 수 있어서 더 유연하다.
+
+javax.swing.Timer
+- 정해진 시간 간격마다 이벤트를 발생시키는 클래스
+- `java.util.Timer`와는 다르다.
+
+ActionListener 인터페이스
+- `java.awt.event` 패키지에 존재. 타이머가 호출할 메서드를 정의하고 있는 규약
+```java
+public interface ActionListener{
+	void actionPerformed(ActionEvent event);
+}
+```
+
+ActionEvent
+- 이벤트에 대한 정보를 담고 있는 객체. (이벤트가 발생한 시간 등)
+
+구현
+- `ActionListener` 인텉페이스를 구현하는 클래스를 만든다
+- `actionPerformed` 메서드 안에 주기적으로 실행될 코드를 작성
+- 위에서 만든 클래스의 인스턴스를 생성
+- `Timer` 객체를 생성할 때 시간 간격과 listener 객체를 전달한다.
+- `timer.start()`를 호출한다.
+ex)
+```java
+// ActionListener 인터페이스를 구현하는 클래스  
+class TimePrinter implements ActionListener {  
+  
+    // 인터페이스에 정의된 메서드 구현  
+    @Override  
+    public void actionPerformed(ActionEvent event) {  
+        // event.getWhen(): 이벤트 발생 시간(long, epoch milliseconds)  
+        // Instant.ofEpochMilli(): 사람이 읽기 쉬운 시간 객체로 변환  
+        System.out.println("At the tone, the time is "  
+                + Instant.ofEpochMilli(event.getWhen()));  
+  
+        // 시스템 비프음 발생  
+        Toolkit.getDefaultToolkit().beep();  
+    }  
+}
+...
+var listener = new TimePrinter();
+var timer = new Timer(1000, listener);
+timer.start();
+```
+
+---
+Timer의 두 번째 파라미터 타입은 `ActionListener` 인터페이스.
+
+---
+
+
+## Comparator Interface
+
+`Comparable` 인터페이스는 클래스 내부에 구현되어 Natural Ordering 을 정의한다. 하지만 다음과 같은 상황에서는 이것만으로 부족하다.
+- 이미 정의된 정렬 기준 말고 다른 기준으로 정렬하고 싶을 때. (사전순 -> 글자 길이순)
+- `String` 클래스처럼 내가 만들지 않은 클래스라서 소스 코드를 수정해서 `Comparable`을 구현하거나 변경할 수 없을 때.
+
+| 특징  | Comparable                     | Comparator (외부 기준)               |
+| --- | ------------------------------ | -------------------------------- |
+| 위치  | 정렬하려는 객체 클래스 내부 (`implements`) | 별도의 클래스 생성                       |
+| 메서드 | `int compareTo(T other)`       | `int compare(T first, T second)` |
+| 관점  | 본인과 비교                         | A와 B 중 누가 큰지                     |
+| 활용  | `Arrays.sort(arr)`             | `Arrays.sort(arr, comparator)`   |
+ex) `String`을 길이순으로 정렬하는 Comparator
+```java
+import java.util.Comparator;
+
+class LengthComparator implements Comparator<String> {
+    @Override
+    public int compare(String first, String second) {
+        // 첫 번째 문자열의 길이가 길면 양수, 짧으면 음수 리턴
+        return first.length() - second.length();
+    }
+}
+//compare 메서드도 compareTo와 동일한 반환값 규칙(음수, 0, 양수)을 따른다 
+//길이 값은 항상 0 이상이고 차이가 크지 않으므로 단순히 뺄셈을 해도 안전.
+...
+...
+String[] friends = { "Peter", "Paul", "Mary" };
+
+// 단순히 sort만 부르면 String의 기본인 '사전순' 정렬이 됨
+// Arrays.sort(friends); 
+
+// Comparator 인스턴스(new LengthComparator())를 함께 전달
+Arrays.sort(friends, new LengthComparator());
+```
 
 
 
+## Object Cloning
 
+copy의 종류
+- reference copy
+	- `Employee original = new Employee("John", 50000);`
+	- `Employee copy = original;`
+	- original 과 copy는 동일한 메모리 주소를 가리킨다. copy를 수정하면 original 도 바뀐다
+- Object cloning
+	- `Employee copy = original.clone();`
+	- original 과 동일한 상태를 가진 새로운 객체를 만든다. copy를 수정해도 original 은 영향을 받지 않는다.
 
+Object 클래스의 clone() 메서드는 기본적으로 앝은 복사를 수행한다.
+- 즉, 필드별로 값을 그대로 복사함.
+	- int, double 등은 값이 복사
+	- String 등은 어차피 내용을 바꿀 수 없으므로 공유해도 안전
+	- Date, 배열 등의 가변 객체는 객체의 주소값만 복사되므로, 서로 영향을 미치게 된다.
 
+Deep Copy 구현
+- 가변 필드(Mutable Fields)가 포함된 클래스를 안전하게 복사하려면 깊은복사를 구현해야한다.
+- `clone()` 내부에서 `super.clone()` 을 호출해서 껍데기를 만든 후 , 가변 필드들을 일일이 새로 복제해서 넣어야 한다.
 
+Cloneable 인터페이스 구현 규칙
+- Cloneable 인터페이스 구현 (메서드 x = Tagging Interface (복제 허용 표식?))
+- `Object.clone()` 은 protected. 이를 public으로 오버라이드 해야한다.
+- `CloneNotSupportedException` 을 throw, try-catch 해야한다. 
+- java 5 부터는 오버라이드 할 때 리턴 타입을 `Object` 대신 자신의 클래스 타입으로 좁혀서 정의할 수 있다. --> 캐스팅 불필요
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ex)
+```java
+public class Employee implements Cloneable{
+	...
+	@Override
+	public Employee clone() throws CloneNotSupportedException{
+		Employee cloned = (Employee) super.clone();
+		cloned.hireDay = (Date) this.hireDay.clone(); 
+		return cloned;
+	}
+}
+```
 
 
 
