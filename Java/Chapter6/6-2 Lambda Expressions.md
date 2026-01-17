@@ -450,16 +450,79 @@ Java의 보수성: 왜 모든 객체(`Object`)에 `transform`을 안 넣어줬�
 
 
 
+## More about Comparators
+
+Java8 부터 `Comparators` 인터페이스에 추가된 정적 메서드와 defualt 메서드에 대한 내용
+
+이전에는 `compare` 메서드를 직접 구현했어야 함. 이제는 주어진 것을 조립하는 형식으로 로직을 짤 수 있게됨
+
+Key Extraction: `comparing`
+- 비교할 기준(Key) 를 알려주는 방식
+- ex) 사람을 비교할 건데, 이름을 추출해서 비교 
+```java
+Arrays.sort(people, (p1,p2) -> p1.getName().compareTo(p2.getName()));
+// 기존 방식
+
+Arrays.sort(people, Comparator.comparing(Person::getName));
+// 사람의 이름(getName)을 기준으로 비교
+```
+
+Chaining: `thenComparing`
+- 비교 기준이 같을 때, 다른 기준을 이어 붙일 수 있음
+- ex) 성을 먼저 비교, 성이 같으면 이름으로 비교
+```java
+Arrays.sort(people,
+	Comparator.comparing(Person::getLastName) // 1순위
+				.thenComparing(Person::getFirstName)); // 2순위 
+```
+
+Primitive Specialization
+- int, long, double 등을 다룰 때는 오토박싱 (auto-boxing)을 방지하여 성능을 높이는 전용 메서드를 쓰는 것이 좋다
+- `comparingInt` `comparingLong` `comparingDouble`
+- ex) 이름의 길이로 정렬
+```java
+Comparator.comparing(p -> p.getName().length());
+// Integer 객체로 boxing
+
+Comparator.comparingInt(p -> p.getName().length());
+// int 그대로 비교
+```
 
 
+Custom Comparator for Keys
+- 추출한 키를 비교할 때, 기본 순서가 아니라 다른 방법으로 비교하고 싶을 때.
+- ex) 이름의 알파벳 사전순이 아닌 이름의 길이를 기준으로 비교
+```java
+
+Arrays.sort(people, Comparator.comparing(
+    Person::getName,                            // 1. 키 추출: 이름(String)
+    (s, t) -> Integer.compare(s.length(), t.length()) // 2. 키 비교: 길이 비교
+));
+```
 
 
+NULL 값 처리
+- 데이터에 `null`이 섞여 있을 때 예외(`NullPointerException`) 없이 안전하게 정렬하는 방법
+	- `nullsFirst` : `null`을 맨 앞으로 보냄
+	- `nullsLast` : `null`을 맨 뒤로 보냄
+	- 이때, `null`이 아닌 값끼리는 어떻게 비교할지를 인자로 줘야 한다. (`naturalOrder` 등)
+```java
+// 상황: MiddleName이 없는(null) 사람이 있음.
+// 1. MiddleName을 추출함
+// 2. null인 사람은 맨 앞으로(nullsFirst)
+// 3. null이 아니면 사전 순서대로(naturalOrder) 정렬
+import static java.util.Comparator.*; // static import를 쓰면 코드가 깔끔해짐
 
+Arrays.sort(people, comparing(
+    Person::getMiddleName, 
+    nullsFirst(naturalOrder())
+));
+```
 
-
-
-
-
+Reversing
+- 만들어진 비교 로직을 반대로 뒤집음
+- `reversed()` : 인스턴스 메서드. 기존 비교기의 역순
+- `reverseOrder()` : 정적 메서드. `naturalOrder()` 의 역순
 
 
 
