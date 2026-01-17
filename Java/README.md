@@ -1,7 +1,7 @@
 # ☕ Java Study
 
 **Reference Book**
-> **Core Java Volume I: Fundamentals** (Cay S. Horstmann) 
+> **Core Java Volume I: Fundamentals 12th edition**(Cay S. Horstmann) 
 
 ## 📝 Progress
 
