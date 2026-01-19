@@ -159,23 +159,196 @@ class TalkingClock
 
 
 
+## Local Inner Classes
+
+지금까지 본 `TimerPrinter` 같은 내부 클래스는 `TalkingClock` 클래스의 멤버(필드, 메서드)로 정의되었다. 
+다만, 예제의 `TimerPrinter` 클래스는 오직 `start()` 메서드 안에서 객체를 생성할 때, 한번만 사용된다.
+이런 경우, 클래스 정의 자체를 메서드 안으로 옮길 수 있다. 이를 지역 내부 클래스 (Local Inner Class) 라고 한다.
+
+교제 예제
+```java
+public void start()
+{
+   // [지역 내부 클래스 정의]
+   // 메서드 내부에서 클래스를 정의
+   class TimePrinter implements ActionListener
+   {
+      public void actionPerformed(ActionEvent event)
+      {
+         System.out.println("At the tone, the time is "
+            + Instant.ofEpochMilli(event.getWhen()));
+         
+         // 여전히 외부 클래스(TalkingClock)의 private 멤버인 beep에 접근 가능
+         if (beep) Toolkit.getDefaultToolkit().beep();
+      }
+   }
+
+   // 클래스가 정의된 바로 그 메서드 안에서만 사용 가능
+   var listener = new TimePrinter();
+   var timer = new Timer(interval, listener);
+   timer.start();
+}
+```
+
+
+특징
+- 지역 클래스는 public, private, protected 와 같은 접근 제어자(Access Specifier) 를 붙일 수 없다.
+	- 이 클래스는 해당 메서드 안에서만 존재하기 때문이다. 지역변수에 public을 붙이지 않는 것과 같음
+- 지역 클래스의 스코프는 자신이 선언된 블록 내부로 엄격하게 제한된다.
+	- `start()` 가 끝나면, 이 클래스는 더이상 코드 상에서 참조할 수 없게 된다.
+
+장점
+- 완벽한 은닉
+	- 패키지 내의 다른 클래스는 물론이고, `TalkingClock` 클래스 안에 있는 다른 메서드들조차 `TimePrinter`의 존재를 알 수 없다.
 
 
 
+## Accessing Variables from Outer Methods
+
+시나리오
+- 이전 예제에서는 `beep`가 `TalkingClock` 클래스의 멤버 변수였다. 
+- 이번에는 `start`메서드의 지역 변수로 변경
+```java
+// beep는 이제 클래스 멤버가 아니라, start 메서드의 지역 변수
+public void start(int interval, boolean beep)
+{
+   class TimePrinter implements ActionListener
+   {
+      public void actionPerformed(ActionEvent event)
+      {
+         // ...
+         // 메서드의 지역 변수 beep를 사용
+         if (beep) Toolkit.getDefaultToolkit().beep();
+      }
+   }
+   
+   var listener = new TimePrinter();
+   var timer = new Timer(interval, listener);
+   timer.start();
+}
+```
+
+문제점
+- Lifecycle 의 불일치
+	- 1. `start(interval, beep)` 호출 --> `beep` 변수 생성
+	- 2. `TimePrinter` 객체 생성
+	- 3. `timer.start()` 호출 , `start` 종료 --> 지역변수 `beep` 이 스택 메모리에서 사라짐
+	- 4. 1초 뒤, 타이머가 울리고 `actionPerformed` 실행 --> 이때 `if(beep)` 실행하려고 하는데, `beep` 변수는 이미 3번 단계에서 사라짐'
+- --> `beep`을 어떻게 참조?
+
+해결책: 변수 캡처 (Variable Capture)
+- 자바 컴파일러는 지역 내부 클래스가 외부의 지역 변수를 사용하면, 그 변수의 값을 복사해서 내부 클래스 안에 저장해둔다.
+```java
+// 컴파일러가 실제로 변환한 코드
+class TalkingClock$1TimePrinter
+{
+    // 1. 외부 클래스 참조
+    final TalkingClock this$0;
+    
+    // 2.지역 변수 'beep'의 복사본을 저장할 필드 생성
+    final boolean val$beep; 
+
+    // 생성자에서 값을 받아와서 저장함
+    TalkingClock$1TimePrinter(TalkingClock outer, boolean beep)
+    {
+        this.this$0 = outer;
+        this.val$beep = beep; // 값을 복사
+    }
+
+    public void actionPerformed(ActionEvent event)
+    {
+        // 실제로는 원본 beep가 아니라, 복사된 val$beep를 사용
+        if (val$beep) ... 
+    }
+}
+```
+
+
+제약 조건
+- 복사 방식 때문에 제약이 생긴다. 
+- 지역 내부 클래스에서 사용하는 지역 변수는 Effectively final 이어야 한다.
+	- 만약 원본 변수(`beep`)의 값이 나중에 바뀐다면, 내부 클래스에 복사된 값(`val$beep`)과 서로 달라지게 된다(동기화 문제). 자바는 이런 혼란을 막기 위해 아예 값을 바꾸지 못하게 강제한다.
 
 
 
+## Anonymous Inner Classes
+
+Local Inner Class를 사용하다 보면, 클래스 이름조차 만들 필요가 없는 경우가 있다.
+- 특정 클래스나 인터페이스를 상속하거나 구현하여 객체를 단 하나만 만들고 싶을 때
+- --> 클래스 정의와 동시에 `new`로 객체를 생성
+
+문법
+```java
+new SuperType(생성자 인수) 
+{
+    // 내부 클래스 메서드 및 데이터 정의
+}
+```
+- `SuperType` 은 다음 두 가지 중 하나일 수 있다
+	- 인터페이스 : `new ActionListener() {...}` --> 해당 인터페이스를 구현
+	- 클래스: `new Person("Name") {...} `--> 해당 클래스를 상속
+
+특징
+- 생성자가 없음
+	- 클래스에 이름이 없다 --> 명시적인 생성자를 작성할 수 없음
+	- `new` 뒤에 오는 부모 클래스의 생성자에게 매개변수 전달 --> 인터페이스를 구현할 때는 생성자가 없으므로 괄호를 비워둠
+- 초기화 블록
+	- 생성자 대신 `{...}`를 사용하여 필드를 초기화할 수 있음.
+- Lambda Expressions
+	- `timer = new Timer(interval, event -> {...});`
 
 
+## Static Inner Classes
 
+일반적인 내부 클래스는 생성될 때 외부 클래스의 객체에 대한 hidden reference를 가진다. 하지만 때로는 이 참조가 불필요할 때가 있다.
+- 어떤 클래스를 숨기거나, 이름 충돌을 방지하고 싶을 때 사용
+- 내부 클래스 선언 앞에 `static` 붙으면 됨 --> 외부 클래스의 인스턴스 멤버에 접근 불가, 외부 클래스의 객체없이도 독립적으로 생성 가능
 
+ex) 배열의 최소/최대값 구하기
+- 배열을 두 번 훑는건 비효율적, 한 번만 훑어서 두개를 모두 반환하는게 좋다. 하지만, 자바의 메서드는 값 하나만 반환할 수 있다.
+- 두 개의 값을 담아서 반환할 수 있는 클래스인 `Pair` 클래스
+```java
+// 값을 두 개 담을 수 있는 클래스
+class Pair
+{
+   private double first;
+   private double second;
+   public Pair(double f, double s)
+   {
+      first = f;
+      second = s;
+   }
+   public double getFirst() { return first; }
+   public double getSecond() { return second; }
+}
+```
+- 문제점
+	- `Pair` 라는 이름이 너무 흔함. --> 충돌 발생 가능
+- 해결책
+	- `Pair` 클래스를 `ArrayAlg` 배열 알고리즘 클래스 안으로 넣으면 `ArrayAlg.Pair` 가 되어서 이름 충돌이 해결 가능
+```java
+class ArrayAlg
+{
+	public static class Pair
+	{
+		...
+	}
+	public static Pair minmax(double[] values) 
+	{
+		...
+		return new Pair(min,max);
+	}
+}
+```
+- `minmax` 메서드는 `static`. `ArrayAlg`의 객체 없이 실행
+- 만약 `Pair`가 일반 내부 클래스라면, `Pair` 객체를 만들기 위해 반드시 `ArrayAlg`객체가 필요하다.
+- 하지만 `static`메서드 안에는 `this`가 없다. --> `Pair` 클래스도 `static`으로 선언해야만, 외부 객체 없이 `minmax` 메서드 안에서 생성될 수 있음.
 
-
-
-
-
-
-
+특징
+- 정적 내부 클래스의 객체는 자신을 생성한 외부 클래스 객체에 대한 참조를 가지지 않음. 따라서 메모리를 덜 사용하며, 외부 클래스의 생명주기와 무관하다.
+- 일반 내부 클래스와 달리, 정적 내부 클래스는 static 필드와 static 메서드를 가질 수 있다.
+- 인터페이스 내부에 선언된 클래스는 자동으로 `public` 이고 `static`이다.
+- 클래스 내부에 선언된 인터페이스, 레코드, 열거형은 자동으로 `static`이다.
 
 
 
