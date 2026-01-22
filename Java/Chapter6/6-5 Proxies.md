@@ -3,7 +3,7 @@
 ## When to use Proxies
 
 컴파일 타임에는 어떤 인터페이스를 구현해야 할지 모르지만, 런타임에 특정 인터페이스들을 구현하는 객체를 만들어야 할 때가 있다.
-그러나, 인터페이스는 스스로를 인스턴스화 할수 없다. (`new InterfaceName()` 불가하다. 또한 클래스를 만들려면 코드를 작성하고 컴파일해야하는데, 실행 중에 이를 수행하는 것은 어렵다.
+그러나, 인터페이스는 스스로를 인스턴스화 할수 없다. (`new InterfaceName()`) 불가하다. 또한 클래스를 만들려면 코드를 작성하고 컴파일해야하는데, 실행 중에 이를 수행하는 것은 어렵다.
 
 해결책1. 실행 중에 문자열로 소스코드를 생성 -> 파일 저장 -> 컴파일러를 호출 -> 결과물(클래스 파일)을 다시 로드 
 - 느리고, 프로그램 배포 시 컴파일러도 함께 배포해야함
@@ -57,7 +57,7 @@ class TraceHandler implements InvocationHandler {
         System.out.println(")");
 
         // 4. 실제 메서드 실행 (target 객체의 메서드 호출)
-        return m.invoke(target, args);
+        return m.invoke(target, args); //reflection의 invoke method
     }
 }
 ...
@@ -93,7 +93,15 @@ public class ProxyTest {
 
 ```
 - 자바가 런타임에 만든 프록시 클래스의 코드
-
+ex) 288을 찾음
+```
+500.compareTo(288)   // 1000의 절반인 500과 비교
+250.compareTo(288)   // 500보다 작으므로, 앞쪽 절반(1~499)의 중간인 250과 비교
+375.compareTo(288)   // 250보다 크므로, 뒤쪽(251~499)의 중간인 375와 비교
+... (중략) ...
+288.compareTo(288)   // 찾음!
+288.toString()       // System.out.println(elements[result]) 호출 시
+```
 
 
 프록시의 주요 사용 사례
@@ -101,14 +109,54 @@ public class ProxyTest {
 - 이벤트 연결: 사용자 인터페이스 이벤트를 실행 중인 프로그램의 동작과 연결
 - 디버깅용 추적: 메서드 호출 시 로그를 남겨 디버깅을 도움
 
+---
+`binarySearch` 할 때 흐름
+- `binarySearch`가 `compareTo`를 호출하는 순간, 자바가 그 호출을 납치해서 `TraceHandler`의 `invoke`로 데려간다.
+- 단계
+1. **호출:** `Arrays.binarySearch` 내부에서 기계적으로 다음 코드가 실행.
+    ``` java
+    // elements[i]는 프록시 객체
+    // key는 우리가 찾는 숫자(예: 288)
+    elements[i].compareTo(key);
+    ```
+2. **Redirection):** `elements[i]`는 프록시이므로, 이 호출은 곧바로 연결된 `TraceHandler.invoke`로 전달. 이때 3가지 정보가 포장되어 넘어간다.
+
+| 파라미터       | 무엇이 넘어가는가?                | 예시 상황                                            |
+| ---------- | ------------------------- | ------------------------------------------------ |
+| **proxy**  | 메서드를 호출당한 프록시 객체 자신       | `elements[i]` (가짜 객체)                            |
+| **method** | 호출된 메서드의 정보 (`Method` 객체) | "이름은 `compareTo`이고, 파라미터는 `Integer` 하나를 받는다"는 정보 |
+| **args**   | 메서드에 넘겨진 인자값들 (배열 형태)     | `[288]` (찾으려는 키 값)                               |
+
+3. **실행:** 이제 `TraceHandler`가 "`compareTo`가 `288`을 들고 호출" 로그를 찍고, 진짜 `target`(숫자 500)에게 `compareTo(288)`을 시킨다.
+
+---
 
 
 
+## Properties of Proxy Classes
 
-
-
-
-
+특징
+- 1. 상속 및 구조
+	- 모든 프록시 클래스는 `java.lang.reflect.Proxy` 클래스를 상속받는다
+	- 프록시 클래스 자체에는 데이터가 거의 없다. `Proxy` 부모 클래스에 정의된 `invocationHandler` 필드만 가진다.
+		- 따라서 필요한 모든 추가 데이터는 프록시 클래스가 아닌 InvocationHandler 안에 저장해야한다.
+- 2. Method Overriding
+	- 프록시 클래스는 인터페이스 메서드 외에 `Object` 클래스의 메서드들도 일부 처리한다.
+	- Handler로 넘기는 메서드 : `toString, equals, hashCode`
+		- 이 메서드들을 호출하면 `invoke()` 가 실행되어 로그를 찍거나 동작을 변경할 수 있다.
+	- 넘기지 않는 메서드: `clone, getClass 등`
+		- 오버라이드 되지 않으며, `Object` 클래스의 본래 기능이 그대로 수행된다.
+- 3. 클래스 정체성 및 생성 규칙
+	- 정해진 규칙은 없으나, 보통 Oracle JVM에서는 `$Proxy0`, `$Proxy1` 같이 `$Proxy`로 시작하는 이름을 가짐.
+	- Class Singularity: 같은 클래스 로더와 같은 인터페이스 목록을 사용하여 `newProxyInstance`를 여러 번 호출하더라도, 동일한 클래스 객체(Class Object)가 재사용
+	    - 즉, 객체(Instance)는 여러 개라도 그들의 설계도(Class)는 하나
+	- 타입: 항상 `public`이며 `final` (상속 불가).
+- 4. 패키지 소속 
+	- 모든 인터페이스가 public인 경우: 프록시 클래스는 특정 패키지에 속하지 않을 수 있다
+	- non-public 인터페이스가 포함된 경우: 접근 권한 문제로 인해, 프록시 클래스는 반드시 해당 인터페이스와 같은 패키지 내에 정의된다. (모든 비공개 인터페이스는 같은 패키지에 있어야 함)
+- 5. Java 16+ 업데이트: Default Method
+	- 인터페이스의 디폴트 메서드(Default Method)를 호출할 때도 Handler의 `invoke`가 트리거됨
+	- 만약 Handler 안에서 진짜 디폴트 메서드 로직을 수행하고 싶다면, `InvocationHandler.invokeDefault(...)` (Java 16부터 추가됨)를 사용해야 한다.
 
 
 
