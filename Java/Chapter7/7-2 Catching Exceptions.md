@@ -346,6 +346,42 @@ Stack Trace
 | **Throwable**            | `printStackTrace()` | 스택 추적을 표준 오류 스트림에 출력합니다.               |
 |                          | `getStackTrace()`   | `StackTraceElement` 배열을 반환합니다. (구형 방식) |
 
+---
+책 예제 일부:
+```java
+StackWalker walker = StackWalker.getInstance();  
+walker.forEach(System.out::println);
+```
+
+1.forEach
+```java
+// java.lang.StackWalker 내부
+public void forEach(Consumer<? super StackFrame> action) {
+    // ... 내부 구현 ...
+}
+```
+`Consumer<? super StackFrame>`에서 `? super StackFrame`은 제네릭의 와일드카드 문법
+- StackFrame 본인, 혹은 StackFrame의 조상(부모) 클래스 타입인 Consumer는 모두 허용하겠다.
+
+즉, 여기에 들어갈 수 있는 `Consumer`의 타입 범위는 다음과 같다
+1. `Consumer<StackFrame>` (본인)
+2. `Consumer<Object>` (조상)
+
+덕분에 `StackFrame`보다 더 상위 개념(`Object`)을 처리하는 메서드(`System.out.println`)도 `forEach`에 아주 자연스럽게 전달할 수 있다.
+
+2.전체 작동 흐름
+1. User Code: `walker.forEach(System.out::println)` 호출.  
+2. Java Library: `Consumer`로 변환하고 내부적으로 `Stream`을 연다.
+3. JNI (Java Native Interface): `native callStackWalk()` 호출 $\rightarrow$ C++ 영역 진입.
+4. JVM (HotSpot):
+    - 현재 스레드의 물리적 메모리 스택을 찾음.
+    - 최상단 프레임부터 하나씩 해석(Decode).
+    - `StackFrame` 객체를 생성해서 Java 힙 메모리에 올림.
+        
+5. Return: 생성된 `StackFrame`을 스트림으로 흘려보냄.
+6. Print: `System.out.println`이 각 프레임을 출력.
+
+---
 
 
 
