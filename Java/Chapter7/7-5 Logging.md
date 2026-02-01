@@ -235,6 +235,211 @@ logger.logrb(Level.INFO, bundle, "renamingFile", oldName, newName);
 
 
 
+## Handlers
+
+핸들러
+: Logger는 로그를 생성하는 역할을 할 뿐, 실제로 화면에 출력하거나 파일에 쓰는 역할은 Handler가 담당한다
+- 로거는 로그 레코드를 자신의 핸들러뿐만 아니라 부모의 핸들러에게도 보낸다
+- 루트 로거는 (`""`) 기본적으로 `ConsoleHandler`를 가지고 있어서 `System.err` 스트림으로 로그를 출력한다.
+: 레벨 검사
+- 로그가 최종적으로 기록되려면 로거의 레벨과 핸들러의 레벨을 모두 통과해야 한다.
+- ex) 로거는 `FINE` 인데 콘솔 핸들러가 `INFO` 라면, `FINE` 로그는 콘솔에 출력되지 않는다.
+
+핸들러 설정 및 중복 출력 방지
+: 특정 로거에만 별도의 핸들러를 붙여서 세밀하게 제어할 수 있다. 이때 주의할 점은 Double Logging 문제이다.
+```java
+Logger logger = Logger.getLogger("com.mycompany.myapp");
+logger.setLevel(Level.FINE); // 로거 레벨 설정
+
+// 부모 핸들러(루트의 ConsoleHandler) 사용 중지 -> 중복 출력 방지
+logger.setUseParentHandlers(false);
+
+// 새로운 콘솔 핸들러 생성 및 부착
+var handler = new ConsoleHandler();
+handler.setLevel(Level.FINE); // 핸들러 레벨 설정
+logger.addHandler(handler);
+```
+- `setUseParentHandlers(false)` : 이를 설정하지 않으면, 새로 만든 핸들러에서 한 번 출력되고, 부모 핸들러(루트)에서 또 한번 출력되어 같은 로그가 두 번 나온다
+
+FileHandler
+: 로그를 파일로 저장하며, 파일이 너무 커지지 않도록 관리하는 기능도 제공한다.
+- `new FileHandler()` -> 사용자 홈 디렉토리의 `javaN.log`(N은 중복 방지 번호)에 저장, XML 형식으로 저장된다.
+: 파일 이름을 지정할 때 특수 패턴 변수를 사용할 수 있다.
+
+| **변수** | **설명**                                        |
+| ------ | --------------------------------------------- |
+| `%h`   | 사용자 홈 디렉토리 (User's home directory)            |
+| `%u`   | 중복 파일 해결을 위한 고유 번호 (Unique number)            |
+| `%g`   | 로그 회전(Rotation)을 위한 생성 번호 (Generation number) |
+| `%%`   | 퍼센트(`%`) 문자 자체                                |
+- ex) `%h/myapp.log` -> 홈 디렉토리의 `myapp.log` 파일에 저장
+: Rotation, append
+- `append`: 여러 어플리케이션이 하나의 로그 파일을 공유하거나, 껐다 켜도 로그를 유지하려면 `append` 플래그를 켜야 한다.
+- `rotation` : 파일 크기가 일정 수준을 넘으면 새 파일을 만든다.
+	- `myapp.log.0`, `myapp.log.1`, `myapp.log.2` (최신 -> 과거) 순으로 관리된다. 제한을 넘어가면 가장 오래된 파일이 삭제된다.
+
+
+Custom Handlers
+: 기본 제공 핸들러(`ConsoleHandler`, `FileHandler`, `SocketHandler`) 외에 핸들러를 따로 만들 수 있다. 교재에서는 로그를 GUI 창에 보여주는 `WindowHandler` 를 예시로 든다.
+-  만들 때 `StreamHandler`, `Handler` 클래스를 상속받아 구현한다.
+```java
+class WindowHandler extends StreamHandler {
+    public WindowHandler() {
+        // 출력 스트림을 JTextArea로 연결하는 로직 
+    }
+
+    // 중요: publish 오버라이딩
+    public void publish(LogRecord record) {
+        super.publish(record);
+        flush(); // 버퍼를 즉시 비워야 함
+    }
+}
+```
+- 주의사항: `StreamHandler` 는 기본적으로 효율성을 위해 로그를 Buffering 한다. 버퍼가 꽉 찰때까지 출력을 안하기 때문에, 프로그램이 비정상 종료되면 마지막 로그들을 잃어버릴 수 있다. 따라서 `publish` 메서드를 오버라이딩 하여 매번 `flush()`를 호출하는 것이 좋다.
+
+## Filters
+
+로거와 핸들러는 로그 레벨을 기준으로 1차적인 필터링을 수행한다.
+`Filter` 인터페이스를 사용하여 레벨 이외의 조건(ex: 특정 단어 포함, 특정 시가대, 특정 사용자 등)으로 로그를 선별할 수 있다.
+- 이는 Logger, Handler 모두에 적용될 수 있다.
+
+구현 방법
+: `java.util.logging.Filter` 인터페이스를 구현하고, `isLoggable`을 정의하면 된다.
+```java
+public interface Filter{
+	boolean isLoggable(LogRecord record);
+}
+```
+- 입력: `LogRecord` 객체(로그의 모든 정보) -> 출력: `true`/`false` = 기록/무시
+
+ex) 메서드 추적용 로그 (`ENTRY`, `RETURN`으로 시작하는 메시지)만 남기고 나머지는 무시하는 필터
+```java
+class TraceFilter implements Filter {
+    @Override
+    public boolean isLoggable(LogRecord record) {
+        String message = record.getMessage();
+        // 메시지가 없으면 false
+        if (message == null) return false;
+        
+        // ENTRY 또는 RETURN으로 시작하는 경우만 true
+        return message.startsWith("ENTRY") || message.startsWith("RETURN");
+    }
+}
+```
+
+필터 장착
+: `setFilter` 메서드를 사용하여 로거 또는 핸들러에 필터를 장착한다.
+```java
+Logger logger = Logger.getLogger("com.mycompany.myapp");
+logger.setFilter(new TraceFilter());
+```
+- 주의사항: 하나의 로거나 핸들러에는 동시에 최대 하나의 필터만 장착할 수 있다. 만약 여러 조건을 적용하고 싶다면, 하나의 필터 클래스 안에서 모든 조건을 and 연산 등으로 묶어서 처리해야 한다.
+
+
+
+## Formatters
+
+포맷터
+: 핸들러가 로그를 어디에 쓸지 결정한다면, Formatter는 로그를 어떤 모양으로 쓸지를 결정한다
+- 기본 포맷터:
+	- `ConsoleHandler` : `SimpleFormatter`를 사용하여 일반 텍스트로 출력한다
+	- `FileHandler` : `XMLFormatter`를 사용하여 XML 구조로 출력한다.
+- 다른 형식이 필요하다면 `Formatter` 클래스를 상속받아 만들 수 있다.
+	- 다음은 사용자 정의 포맷터를 만들 때 오버라이딩해야 할 핵심 메서드들이다.
+	- `format(LogRecord record)` (필수)
+		- 로그 레코드를 받아서 최종 문자열을 반환한다. 날짜, 레벨, 클래스 이름 등은 `record` 객체에서 꺼내온다
+		-  메시지 부분은 직접 파싱하지 말고 `formatMessage(record)`를 호출하면, localization(언어변환) 과 매개변수 치환을 알아서 해준다.
+	- `getHead(Handler h)`, `getTail(Handler h)` (선택)
+		- 로그 파일의 시작 부분과 끝 부분을 정의한다. XML 이나 HTML 처럼 여닫는 태그가 필요한 형식에서 유용하다.
+
+ex) HTML 포맷터 : HTML 테이블 형태로 로그를 남기는 포맷터 예시
+```java
+class MyHtmlFormatter extends Formatter {
+    // 1. 파일의 시작 (테이블 열기)
+    @Override
+    public String getHead(Handler h) {
+        return "<HTML><HEAD><TITLE>My Log</TITLE></HEAD><BODY><TABLE border='1'>\n" +
+               "<TR><TH>Level</TH><TH>Time</TH><TH>Message</TH></TR>\n";
+    }
+
+    // 2. 각 로그 레코드 포맷팅 (테이블 행 추가)
+    @Override
+    public String format(LogRecord record) {
+        return "<TR>" +
+               "<TD>" + record.getLevel() + "</TD>" +
+               "<TD>" + new Date(record.getMillis()) + "</TD>" +
+               "<TD>" + formatMessage(record) + "</TD>" + // formatMessage 사용!
+               "</TR>\n";
+    }
+
+    // 3. 파일의 끝 (테이블 닫기)
+    @Override
+    public String getTail(Handler h) {
+        return "</TABLE></BODY></HTML>\n";
+    }
+}
+```
+
+포맷터 장착
+: 만들어진 포맷터를 핸들러에 장착하려면 `setFormatter` 메서드를 사용한다.
+```java
+var handler = new FileHandler("%h/myapp.html");
+handler.setFormatter(new MyHtmlFormatter()); // 포맷터 교체
+logger.addHandler(handler);
+```
+
+
+
+
+## A Logging Recipe
+
+로거 이름
+- 메인 애플리케이션 패키지 이름을 로거 이름으로 사용하셈...
+- 로그를 많이 남기는 클래스에는 `static` 필드로 선언해 두는 것이 좋다
+```java
+private static final Logger logger = Logger.getLogger("com.mycompany.myprog");
+```
+
+기본 설정 덮어쓰기
+- 기본 설정(ConsoleHandler, INFO 레벨)은 부족할 수 있다.
+- 사용자가 별도의 설정 파일을 지정하지 않았다면, 프로그램 시작 시점(`main`)에서 FileHandler 를 직접 등록하라
+
+마음껏 로그 남기기
+- INFO, WARNING, SEVERE : 사용자에게 의미있는 정보만 남긴다. 
+- FINE : 개발자를 위한 정보.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
