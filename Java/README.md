@@ -10,8 +10,8 @@
 - [x] Chapter 3: Fundamental Programming Structures
 - [x] Chapter 4: Objects and Classes
 - [x] Chapter 5: Inheritance
-- [ ] Chapter 6: Interfaces, Lambda Expressions, and Inner Classes
-- [ ] Chapter 7: Exceptions, Assertions, and Logging
+- [x] Chapter 6: Interfaces, Lambda Expressions, and Inner Classes
+- [x] Chapter 7: Exceptions, Assertions, and Logging
 - [ ] Chapter 8: Generic Programming
 - [ ] Chapter 9: Collections
 - [ ] ...
