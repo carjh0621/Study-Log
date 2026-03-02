@@ -52,8 +52,15 @@ rawBuddies.setFirst(new File("...")); // 경고만 뜨고 실행됨
 - 따라서 `ArrayList<Manager>`를 `List<Manager>`변수에 대입할 수 있다.
 하지만 여기서도 주의할 점은 `ArrayList<Manager>`는 `ArrayList<Employee>`나 `List<Employee>`와는 아무런 관계가 없다는 것이다. 
 
+---
+Primitive Type, Raw Type 은 완전히 다르다
+- Raw Type 은 제네릭 클래스에서 타입 파라미터 `<T>`를 안 쓴것을 의미
 
+Raw Type은 매개변수화된 타입의 부모처럼 동작한다.
+- `ArrayList`는 `ArrayList<Manager>` 의 부모처럼 동작한다.
+- 정확히 말하면 상위타입(Supertype) 관계가 성립한다.
 
+---
 
 
 
