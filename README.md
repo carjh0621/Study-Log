@@ -4,5 +4,5 @@
 
 ## 🗂 Categories
 
-- **[☕ Java](./Java/README.md)** : Core Java Volume I
+- **[☕ Java](Core%20Java%201/README.md)** : Core Java Volume I
 - *추후 추가 예정*
